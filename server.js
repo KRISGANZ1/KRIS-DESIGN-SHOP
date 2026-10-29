@@ -13,8 +13,8 @@ if (process.env.VERCEL && !process.env.DATABASE_URL) {
 if (process.env.VERCEL && !process.env.SESSION_SECRET) {
   throw new Error('SESSION_SECRET wajib dikonfigurasi untuk deploy Vercel.');
 }
-if (process.env.VERCEL && (!process.env.ADMIN_USERNAME || !process.env.ADMIN_PASSWORD || process.env.ADMIN_PASSWORD.length < 16)) {
-  throw new Error('ADMIN_USERNAME dan ADMIN_PASSWORD minimal 16 karakter wajib dikonfigurasi untuk deploy Vercel.');
+if (process.env.VERCEL && (!process.env.ADMIN_USERNAME || !process.env.ADMIN_PASSWORD)) {
+  throw new Error('ADMIN_USERNAME dan ADMIN_PASSWORD wajib dikonfigurasi untuk deploy Vercel.');
 }
 
 const { initializeDatabase, db, run, get, all, createOrderCode, hashText, usePostgres } = require('./db');
