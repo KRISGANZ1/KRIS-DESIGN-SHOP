@@ -23,6 +23,7 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const uploadDir = path.join(__dirname, 'public', 'uploads');
 const isVercel = Boolean(process.env.VERCEL);
+const MAX_IMAGE_SIZE_BYTES = 15 * 1024 * 1024;
 const makeUploadName = (file) => {
   const safeName = file.originalname.replace(/[^a-zA-Z0-9.\-_]/g, '-');
   return `${Date.now()}-${crypto.randomBytes(6).toString('hex')}-${safeName}`;
@@ -30,7 +31,7 @@ const makeUploadName = (file) => {
 
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 4 * 1024 * 1024, fieldSize: 64 * 1024, files: 1 },
+  limits: { fileSize: MAX_IMAGE_SIZE_BYTES, fieldSize: 64 * 1024, files: 1 },
   fileFilter: (req, file, cb) => {
     const allowed = ['image/png', 'image/jpeg', 'image/webp'];
     if (allowed.includes(file.mimetype)) return cb(null, true);
@@ -68,7 +69,7 @@ function handleProductImageUpload(req, res, next) {
     if (!error) return next();
 
     const message = error.code === 'LIMIT_FILE_SIZE'
-      ? 'Ukuran gambar maksimal 4 MB.'
+      ? 'Ukuran gambar maksimal 15 MB.'
       : error.message || 'Gagal mengunggah gambar.';
     res.status(400).json({ success: false, message });
   });
@@ -79,7 +80,7 @@ function handleQrImageUpload(req, res, next) {
     if (!error) return next();
 
     const message = error.code === 'LIMIT_FILE_SIZE'
-      ? 'Ukuran gambar QR maksimal 4 MB.'
+      ? 'Ukuran gambar QR maksimal 15 MB.'
       : error.message || 'Gagal mengunggah gambar QR.';
     res.status(400).json({ success: false, message });
   });
@@ -156,6 +157,46 @@ function buildOrderSummary(items) {
 
 app.get('/api/health', (req, res) => {
   res.json({ success: true, status: 'ok' });
+});
+
+app.get('/api/config', (req, res) => {
+  res.json({ success: true, blobClientUploads: isVercel });
+});
+
+app.post('/api/admin/blob-uploads', async (req, res) => {
+  try {
+    if (!isVercel || !process.env.BLOB_READ_WRITE_TOKEN) {
+      return res.status(400).json({ success: false, message: 'Unggah langsung ke Blob tidak tersedia.' });
+    }
+
+    const { handleUpload } = require('@vercel/blob/client');
+    const result = await handleUpload({
+      request: req,
+      body: req.body,
+      onBeforeGenerateToken: async (pathname) => {
+        if (!req.session?.admin) {
+          const error = new Error('Silakan login kembali sebagai admin.');
+          error.statusCode = 401;
+          throw error;
+        }
+        if (!/^store-uploads\/[a-zA-Z0-9._-]{1,200}$/.test(pathname)) {
+          const error = new Error('Lokasi unggah gambar tidak valid.');
+          error.statusCode = 400;
+          throw error;
+        }
+
+        return {
+          allowedContentTypes: ['image/png', 'image/jpeg', 'image/webp'],
+          maximumSizeInBytes: MAX_IMAGE_SIZE_BYTES,
+          addRandomSuffix: true,
+        };
+      },
+    });
+    res.json(result);
+  } catch (error) {
+    const status = Number(error.statusCode) || 400;
+    res.status(status).json({ success: false, message: error.message || 'Gagal menyiapkan unggahan gambar.' });
+  }
 });
 
 app.get('/api/categories', async (req, res) => {

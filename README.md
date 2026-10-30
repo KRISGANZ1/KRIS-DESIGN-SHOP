@@ -20,6 +20,8 @@ Create a managed PostgreSQL database and a Vercel Blob store, then configure the
 
 The app creates its PostgreSQL tables and seeds default catalog/payment data on its first request. The admin user is initialized from the environment variables above. `/api/*` requests run through the Express function in `api/[...path].js`; customer routes are rewritten to the SPA entry point.
 
+Product and QRIS images accept PNG, JPG, and WEBP files up to 15 MB. On Vercel, the browser uploads images directly to Blob using a short-lived, admin-authorized upload token; files do not pass through the serverless function request-size limit.
+
 **Existing SQLite data is not automatically migrated.** Before switching a live store to Vercel, export and import the SQLite products, categories, payment methods, orders, and admin account into the configured PostgreSQL database. Local uploaded images also need to be uploaded again; new uploads on Vercel use Blob and persist across deployments.
 
 ### Migrate the current local store

@@ -1,4 +1,5 @@
 const app = document.getElementById('app');
+const MAX_IMAGE_SIZE_BYTES = 15 * 1024 * 1024;
 
 const state = {
   products: [],
@@ -149,6 +150,24 @@ function getCartTotal() {
 
 function getCartCount() {
   return state.cart.reduce((sum, item) => sum + Number(item.quantity || 1), 0);
+}
+
+async function uploadAdminImage(file) {
+  const config = await fetchJson('/api/config');
+  if (!config.blobClientUploads) return null;
+  if (!window.VercelBlob?.upload) {
+    throw new Error('Fitur unggah gambar belum siap. Muat ulang halaman dan coba lagi.');
+  }
+
+  const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '-').slice(-120) || 'image';
+  const pathname = `store-uploads/${Date.now()}-${crypto.randomUUID()}-${safeName}`;
+  const blob = await window.VercelBlob.upload(pathname, file, {
+    access: 'public',
+    handleUploadUrl: '/api/admin/blob-uploads',
+    contentType: file.type,
+    multipart: file.size > 5 * 1024 * 1024,
+  });
+  return blob.url;
 }
 
 async function fetchJson(url, options = {}) {
@@ -796,7 +815,7 @@ function renderGalleryPicker(currentValue = '/assets/placeholder-product.svg') {
       <input id="product-image-url" name="imageUrl" value="${escapeHtml(currentValue)}" />
     </div>
     <div class="field">
-      <label>Atau unggah foto</label>
+      <label>Atau unggah foto (PNG/JPG/WEBP, maks. 15 MB)</label>
       <input type="file" id="product-image-upload" accept="image/png,image/jpeg,image/webp" />
     </div>
   `;
@@ -816,7 +835,7 @@ function renderQrGalleryPicker(currentValue = '') {
       </div>
     </div>
     <div class="field"><label>URL gambar QR</label><input id="payment-qr-url" name="qrCode" value="${escapeHtml(currentValue)}" /></div>
-    <div class="field"><label>Atau unggah gambar QRIS (PNG/JPG/WEBP, maks. 4 MB)</label><input type="file" id="payment-qr-upload" accept="image/png,image/jpeg,image/webp" /></div>
+    <div class="field"><label>Atau unggah gambar QRIS (PNG/JPG/WEBP, maks. 15 MB)</label><input type="file" id="payment-qr-upload" accept="image/png,image/jpeg,image/webp" /></div>
     ${currentValue ? `<img class="qr-preview" src="${escapeHtml(currentValue)}" alt="Preview QR" />` : ''}
   `;
 }
@@ -1214,9 +1233,9 @@ function bindEvents() {
       uploadInput.addEventListener('change', (event) => {
         const file = event.target.files && event.target.files[0];
         if (!file) return;
-        if (file.size > 4 * 1024 * 1024) {
+        if (file.size > MAX_IMAGE_SIZE_BYTES) {
           uploadInput.value = '';
-          showToast('Ukuran gambar maksimal 4 MB.', 'error');
+          showToast('Ukuran gambar maksimal 15 MB.', 'error');
           return;
         }
         productForm.querySelectorAll('.gallery-option').forEach((item) => item.classList.remove('selected'));
@@ -1230,7 +1249,12 @@ function bindEvents() {
       const productId = fd.get('id');
 
       if (uploadedFile) {
-        fd.set('imageFile', uploadedFile);
+        const uploadedUrl = await uploadAdminImage(uploadedFile);
+        if (uploadedUrl) {
+          fd.set('imageUrl', uploadedUrl);
+        } else {
+          fd.set('imageFile', uploadedFile);
+        }
       }
 
       try {
@@ -1256,9 +1280,9 @@ function bindEvents() {
   if (paymentMethodForm) {
     const qrUpload = paymentMethodForm.querySelector('#payment-qr-upload');
     qrUpload?.addEventListener('change', () => {
-      if (qrUpload.files?.[0]?.size > 4 * 1024 * 1024) {
+      if (qrUpload.files?.[0]?.size > MAX_IMAGE_SIZE_BYTES) {
         qrUpload.value = '';
-        showToast('Ukuran gambar QR maksimal 4 MB.', 'error');
+        showToast('Ukuran gambar QR maksimal 15 MB.', 'error');
       }
     });
 
@@ -1267,7 +1291,14 @@ function bindEvents() {
       const fd = new FormData(paymentMethodForm);
       const methodId = fd.get('id');
       fd.set('isActive', paymentMethodForm.querySelector('[name="isActive"]').checked ? '1' : '0');
-      if (qrUpload?.files?.[0]) fd.set('qrImage', qrUpload.files[0]);
+      if (qrUpload?.files?.[0]) {
+        const uploadedUrl = await uploadAdminImage(qrUpload.files[0]);
+        if (uploadedUrl) {
+          fd.set('qrCode', uploadedUrl);
+        } else {
+          fd.set('qrImage', qrUpload.files[0]);
+        }
+      }
       try {
         const response = await fetch(methodId ? `/api/admin/payment-methods/${encodeURIComponent(methodId)}` : '/api/admin/payment-methods', {
           method: methodId ? 'PUT' : 'POST',
