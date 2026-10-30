@@ -257,9 +257,7 @@ function renderHeader() {
       <div class="container header-inner">
         <a class="brand" href="/" data-navigate="/">
           <span class="brand-mark">
-            <svg viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg" aria-label="brand logo">
-              <path d="M38 28h18l18 20V28h16v72H74L38 58V28zm24 22l10 12-10 12h8l8-10 8 10h8l-10-12 10-12h-8l-8 10-8-10h-8z" fill="#fff"/>
-            </svg>
+            <img src="/assets/kris-design-shop-logo.png" alt="" />
           </span>
           <span>KRIS DESIGN SHOP</span>
         </a>
