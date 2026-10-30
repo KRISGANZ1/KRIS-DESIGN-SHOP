@@ -14,6 +14,7 @@ const state = {
   pageSize: 8,
   currentRoute: window.location.pathname || '/',
   orderCode: localStorage.getItem('kds-last-order-code') || '',
+  paymentOrder: null,
   adminSession: null,
   adminOrders: [],
   editingCategoryId: '',
@@ -653,43 +654,90 @@ function renderCart() {
 }
 
 function renderCheckout() {
-  const paymentOptions = (state.paymentMethods.length ? state.paymentMethods : [
-    { id: 'bank-bca', name: 'Bank BCA', account_name: 'KRIS DESIGN SHOP', account_number: '1234567890' },
-    { id: 'bank-mandiri', name: 'Bank Mandiri', account_name: 'KRIS DESIGN SHOP', account_number: '101234567890' },
-    { id: 'ewallet-dana', name: 'DANA', account_name: 'KRIS DESIGN SHOP', account_number: '085782554720' },
-  ]).map((method) => `<option value="${escapeHtml(method.id)}">${escapeHtml(method.name)}</option>`).join('');
+  const activeMethods = state.paymentMethods.filter((method) => Number(method.is_active ?? 1));
+  const namedMethods = ['QRIS', 'DANA', 'GoPay'].map((name) => {
+    const method = activeMethods.find((item) => `${item.name} ${item.id}`.toLowerCase().includes(name.toLowerCase()));
+    return { name, method };
+  });
+  const additionalMethods = activeMethods.filter((method) =>
+    !namedMethods.some(({ method: configured }) => configured?.id === method.id)
+  );
+  const paymentCard = (name, method, icon) => `
+    <label class="checkout-payment-option ${method ? '' : 'is-unavailable'}">
+      <input type="radio" name="paymentMethod" value="${escapeHtml(method?.id || '')}" ${method ? 'required' : 'disabled'} />
+      <span class="checkout-payment-icon" aria-hidden="true">${icon}</span>
+      <span class="checkout-payment-copy">
+        <strong>${escapeHtml(method?.name || name)}</strong>
+        <small>${method ? escapeHtml(method.account_number || 'Pembayaran digital') : 'Belum dikonfigurasi'}</small>
+      </span>
+      <span class="checkout-payment-check" aria-hidden="true"></span>
+    </label>
+  `;
+  const otherPaymentCards = additionalMethods.map((method) => paymentCard(method.name, method, '•••')).join('');
+  const productRows = state.cart.map((item) => `
+    <div class="checkout-summary-item">
+      <img src="${escapeHtml(item.imageUrl || '/assets/placeholder-product.svg')}" alt="" />
+      <div class="checkout-summary-item-copy">
+        <strong>${escapeHtml(item.productName)}</strong>
+        <span>${Number(item.quantity)} × ${formatPrice(item.price)}</span>
+      </div>
+      <strong class="checkout-summary-item-total">${formatPrice(Number(item.price) * Number(item.quantity))}</strong>
+    </div>
+  `).join('');
 
   return `
     <section class="section">
       <div class="container">
-        <div class="page-shell">
-          <div class="page-hero"><span class="eyebrow">Checkout</span><h1>Formulir Pembelian</h1></div>
-          <div class="grid-two" style="margin-top: 22px;">
-            <form id="checkout-form" class="checkout-panel">
-              <div class="field"><label>Nama Pembeli</label><input name="customerName" required /></div>
-              <div class="field"><label>Nomor WhatsApp aktif</label><input name="whatsapp" required /></div>
-              <div class="field"><label>Email opsional</label><input name="email" type="email" /></div>
-              <div class="field"><label>Catatan pesanan</label><textarea name="notes"></textarea></div>
-              <div class="field"><label>Metode pembayaran</label>
-                <select name="paymentMethod">
-                  ${paymentOptions}
-                </select>
-              </div>
-              <div class="product-actions" style="margin-top: 16px;">
-                <button type="submit" class="primary-button">Buat Pesanan</button>
-              </div>
-            </form>
-            <aside class="summary-card">
-              <h3>Ringkasan Produk</h3>
-              ${state.cart.length ? state.cart.map((item) => `
-                <div class="summary-row">
-                  <span>${escapeHtml(item.productName)} x ${item.quantity}</span>
-                  <strong>${formatPrice(Number(item.price) * Number(item.quantity))}</strong>
-                </div>
-              `).join('') : '<p>Keranjang kosong.</p>'}
-              <div class="summary-row summary-total"><span>Total</span><strong>${formatPrice(getCartTotal())}</strong></div>
-            </aside>
+        <div class="page-shell checkout-page">
+          <div class="checkout-heading">
+            <span class="eyebrow">Checkout aman</span>
+            <h1>Selesaikan <span>pesananmu.</span></h1>
+            <p>Isi kontak yang bisa dihubungi, lalu pilih cara pembayaran.</p>
           </div>
+          ${state.cart.length ? `
+            <form id="checkout-form" class="checkout-layout">
+              <div class="checkout-form-column">
+                <section class="checkout-section-card">
+                  <div class="checkout-section-heading"><span class="checkout-step">01</span><div><h2>Informasi Pembeli</h2><p>Detail untuk konfirmasi dan proses pesanan.</p></div></div>
+                  <div class="checkout-customer-fields">
+                    <div class="field"><label for="checkout-customer-name">Nama Pembeli</label><input id="checkout-customer-name" name="customerName" autocomplete="name" placeholder="Nama lengkap" required /></div>
+                    <div class="field"><label for="checkout-whatsapp">Nomor WhatsApp</label><input id="checkout-whatsapp" name="whatsapp" type="tel" autocomplete="tel" placeholder="08xxxxxxxxxx" required /></div>
+                    <div class="field checkout-optional-field"><label for="checkout-email">Email <span>(opsional)</span></label><input id="checkout-email" name="email" type="email" autocomplete="email" placeholder="nama@email.com" /></div>
+                    <div class="field checkout-optional-field"><label for="checkout-notes">Catatan <span>(opsional)</span></label><input id="checkout-notes" name="notes" placeholder="Catatan untuk pesanan" /></div>
+                  </div>
+                </section>
+                <section class="checkout-section-card">
+                  <div class="checkout-section-heading"><span class="checkout-step">02</span><div><h2>Metode Pembayaran</h2><p>Pilih metode yang tersedia untuk pesanan ini.</p></div></div>
+                  <div class="checkout-payment-grid">
+                    ${paymentCard('QRIS', namedMethods[0].method, 'QR')}
+                    ${paymentCard('DANA', namedMethods[1].method, 'D')}
+                    ${paymentCard('GoPay', namedMethods[2].method, 'G')}
+                    ${otherPaymentCards}
+                  </div>
+                  ${!activeMethods.length ? '<p class="checkout-payment-notice">Metode pembayaran belum tersedia. Silakan hubungi admin sebelum melanjutkan.</p>' : ''}
+                </section>
+                <label class="checkout-consent"><input type="checkbox" name="termsAccepted" required /><span>Saya telah memeriksa detail pesanan dan menyetujui <a href="/terms" data-navigate="/terms">syarat dan ketentuan</a>.</span></label>
+                <button type="submit" class="primary-button checkout-submit" ${activeMethods.length ? '' : 'disabled'}>Konfirmasi &amp; Lanjut Pembayaran <span aria-hidden="true">→</span></button>
+                <button type="button" class="ghost-button checkout-back" data-navigate="/cart">Kembali ke keranjang</button>
+              </div>
+              <aside class="checkout-summary-card">
+                <div class="checkout-summary-heading"><h2>Ringkasan Pesanan</h2><span>${getCartCount()} item</span></div>
+                <div class="checkout-summary-items">${productRows}</div>
+                <div class="checkout-summary-breakdown">
+                  <div><span>Subtotal</span><strong>${formatPrice(getCartTotal())}</strong></div>
+                  <div><span>Biaya layanan</span><strong>Gratis</strong></div>
+                </div>
+                <div class="checkout-summary-total"><span>Total pembayaran</span><strong>${formatPrice(getCartTotal())}</strong></div>
+                <p class="checkout-summary-note">Pembayaran akan diverifikasi oleh admin setelah Anda mengirim konfirmasi.</p>
+              </aside>
+            </form>
+          ` : `
+            <div class="checkout-empty">
+              <h2>Keranjang masih kosong</h2>
+              <p>Pilih produk terlebih dahulu untuk melanjutkan checkout.</p>
+              <button type="button" class="primary-button" data-navigate="/products">Jelajahi Produk</button>
+            </div>
+          `}
         </div>
       </div>
     </section>
@@ -697,33 +745,52 @@ function renderCheckout() {
 }
 
 function renderPayment() {
-  const methods = state.paymentMethods.length ? state.paymentMethods : [
-    { name: 'Bank BCA', account_name: 'KRIS DESIGN SHOP', account_number: '1234567890', instructions: 'Transfer sesuai nominal total pembayaran.' },
-    { name: 'Bank Mandiri', account_name: 'KRIS DESIGN SHOP', account_number: '101234567890', instructions: 'Transfer ke rekening Mandiri lalu kirim bukti.' },
-    { name: 'DANA', account_name: 'KRIS DESIGN SHOP', account_number: '085782554720', instructions: 'Bayar via DANA dan kirim screenshot untuk verifikasi.' },
-    { name: 'QRIS', account_name: 'KRIS DESIGN SHOP', account_number: '', instructions: 'Scan QRIS untuk membayar.' },
-  ];
+  const order = state.paymentOrder;
+  const method = order?.paymentDetails;
+  const confirmationText = encodeURIComponent(
+    `Halo admin KRIS DESIGN SHOP, saya ingin konfirmasi pembayaran pesanan ${order?.orderCode || state.orderCode} sebesar ${formatPrice(order?.total || 0)} melalui ${method?.name || order?.paymentMethod || 'metode pembayaran pilihan'}. Saya akan melampirkan bukti pembayaran.`
+  );
 
   return `
     <section class="section">
       <div class="container">
-        <div class="page-shell">
-          <div class="page-hero"><span class="eyebrow">Pembayaran</span><h1>Instruksi Pembayaran</h1></div>
-          <div class="grid-two" style="margin-top: 22px;">
-            <div class="checkout-panel">
-              <p>Silakan transfer sesuai total pembayaran dan konfirmasi via WhatsApp admin.</p>
-              <ul class="detail-points">
-                <li>Nomor WhatsApp: +6285782554720</li>
-                <li>Email kontak: krisdesign0@gmail.com</li>
-                <li>Instruksi: Pastikan nominal transfer sesuai total akhir.</li>
-              </ul>
-            </div>
-            <aside class="summary-card">
-              <h3>Metode Pembayaran</h3>
-              <ul class="detail-points payment-method-list">
-                ${methods.map((method) => `<li><strong>${escapeHtml(method.name)}</strong>${method.account_number ? `: ${escapeHtml(method.account_number)}` : ''} ${method.account_name ? `a.n ${escapeHtml(method.account_name)}` : ''} — ${escapeHtml(method.instructions || 'Silakan ikuti instruksi pembayaran.')}${method.name.toLowerCase().includes('qris') && method.qr_code ? `<img class="payment-qr" src="${escapeHtml(method.qr_code)}" alt="QR ${escapeHtml(method.name)}" />` : ''}</li>`).join('')}
-              </ul>
-              ${state.orderCode ? `<div class="order-code-card"><span>Kode pesanan</span><strong>${escapeHtml(state.orderCode)}</strong><a class="text-link" href="/orders" data-navigate="/orders">Cek status konfirmasi pembayaran</a></div>` : ''}
+        <div class="page-shell checkout-page">
+          <div class="checkout-heading">
+            <span class="eyebrow">Satu langkah lagi</span>
+            <h1>Instruksi <span>Pembayaran.</span></h1>
+            <p>Gunakan rincian di bawah, lalu kirim bukti pembayaran kepada admin.</p>
+          </div>
+          <div class="payment-layout">
+            <section class="checkout-section-card payment-instructions-card">
+              <div class="checkout-section-heading"><span class="checkout-step">✓</span><div><h2>Pesanan berhasil dibuat</h2><p>Kode pesanan <strong>${escapeHtml(order?.orderCode || state.orderCode || '-')}</strong></p></div></div>
+              ${method ? `
+                <div class="payment-selected-method">
+                  <span class="catalog-product-category">Metode pilihan</span>
+                  <h3>${escapeHtml(method.name)}</h3>
+                  ${method.account_number ? `<p class="payment-account-number">${escapeHtml(method.account_number)}</p>` : ''}
+                  ${method.account_name ? `<p class="muted-copy">Atas nama ${escapeHtml(method.account_name)}</p>` : ''}
+                  ${method.name.toLowerCase().includes('qris') && method.qr_code ? `<img class="payment-instructions-qr" src="${escapeHtml(method.qr_code)}" alt="Kode pembayaran QRIS" />` : ''}
+                  <p class="payment-instructions-copy">${escapeHtml(method.instructions || 'Ikuti petunjuk dari metode pembayaran yang dipilih.')}</p>
+                </div>
+              ` : '<p class="checkout-payment-notice">Rincian pembayaran tidak dapat dimuat. Gunakan kode pesanan saat menghubungi admin.</p>'}
+              <div class="payment-confirmation-box">
+                <strong>Sudah menyelesaikan pembayaran?</strong>
+                <p>Kirim bukti transfer melalui WhatsApp agar admin dapat memeriksa dan mengonfirmasi pesanan.</p>
+                <a class="primary-button payment-confirm-button" href="https://wa.me/6285782554720?text=${confirmationText}" target="_blank" rel="noopener noreferrer">Konfirmasi Pembayaran via WhatsApp <span aria-hidden="true">↗</span></a>
+              </div>
+              <p class="payment-review-note">Status pesanan tetap menunggu sampai admin memverifikasi pembayaran.</p>
+            </section>
+            <aside class="checkout-summary-card payment-order-card">
+              <div class="checkout-summary-heading"><h2>Ringkasan Pesanan</h2><span>Menunggu pembayaran</span></div>
+              ${order?.items?.length ? `<div class="checkout-summary-items">${order.items.map((item) => `
+                <div class="checkout-summary-item">
+                  <img src="${escapeHtml(item.imageUrl || item.image_url || '/assets/placeholder-product.svg')}" alt="" />
+                  <div class="checkout-summary-item-copy"><strong>${escapeHtml(item.name)}</strong><span>${Number(item.quantity)} × ${formatPrice(item.price)}</span></div>
+                  <strong class="checkout-summary-item-total">${formatPrice(item.subtotal || Number(item.price) * Number(item.quantity))}</strong>
+                </div>
+              `).join('')}</div>` : '<p class="muted-copy">Pesanan tersimpan dengan kode di atas.</p>'}
+              <div class="checkout-summary-total"><span>Total pembayaran</span><strong>${formatPrice(order?.total || 0)}</strong></div>
+              <a class="text-link payment-track-link" href="/orders" data-navigate="/orders">Lacak status pesanan →</a>
             </aside>
           </div>
         </div>
@@ -1234,12 +1301,13 @@ function bindEvents() {
           email: formData.get('email'),
           notes: formData.get('notes'),
           paymentMethod: formData.get('paymentMethod'),
-          items: state.cart.map((item) => ({ productId: item.productId, name: item.productName, price: item.price, quantity: item.quantity, subtotal: Number(item.price) * Number(item.quantity) })),
+          items: state.cart.map((item) => ({ productId: item.productId, name: item.productName, imageUrl: item.imageUrl, price: item.price, quantity: item.quantity, subtotal: Number(item.price) * Number(item.quantity) })),
           cartTotal: getCartTotal(),
         };
         const result = await fetchJson('/api/orders', { method: 'POST', body: JSON.stringify(payload) });
         localStorage.removeItem('kds-cart');
         state.cart = [];
+        state.paymentOrder = { ...result.order, paymentDetails: result.paymentDetails, items: payload.items };
         state.orderCode = result.order.orderCode;
         localStorage.setItem('kds-last-order-code', state.orderCode);
         showToast('Pesanan berhasil dibuat. Silakan bayar.', 'success');
@@ -1493,6 +1561,14 @@ function render() {
   await loadProducts();
   await loadPaymentMethods();
   await loadGalleryImages();
+  if (state.currentRoute.startsWith('/payment') && state.orderCode) {
+    try {
+      const result = await fetchJson(`/api/orders/${encodeURIComponent(state.orderCode)}`);
+      state.paymentOrder = result.order;
+    } catch (error) {
+      showToast(error.message || 'Gagal memuat detail pembayaran.', 'error');
+    }
+  }
   if (state.adminSession) {
     try {
       await loadAdminDashboard();

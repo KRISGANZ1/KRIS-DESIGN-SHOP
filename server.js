@@ -369,10 +369,16 @@ app.post('/api/orders', async (req, res) => {
     const cleanItems = items.map((item) => ({
       productId: item.productId,
       name: item.name,
+      imageUrl: item.imageUrl || '',
       quantity: Number(item.quantity || 1),
       price: Number(item.price || 0),
       subtotal: Number(item.subtotal || item.price * item.quantity || 0),
     }));
+
+    const paymentMethodRow = await get('SELECT * FROM payment_methods WHERE id = ? AND is_active = 1', [paymentMethod || '']);
+    if (!paymentMethodRow) {
+      return res.status(400).json({ success: false, message: 'Pilih metode pembayaran yang masih aktif.' });
+    }
 
     const total = Number(cartTotal || cleanItems.reduce((sum, item) => sum + item.subtotal, 0));
     const orderCode = createOrderCode();
@@ -384,7 +390,6 @@ app.post('/api/orders', async (req, res) => {
       [orderId, orderCode, String(customerName).trim(), String(whatsapp).trim(), email ? String(email).trim() : null, notes ? String(notes).trim() : null, JSON.stringify(cleanItems), total, paymentMethod || 'bank-transfer']
     );
 
-    const paymentMethodRow = await get('SELECT * FROM payment_methods WHERE id = ? AND is_active = 1', [paymentMethod || 'bank-bca']);
     res.json({
       success: true,
       order: {
@@ -395,6 +400,14 @@ app.post('/api/orders', async (req, res) => {
         total,
         paymentMethod: paymentMethodRow ? paymentMethodRow.name : (paymentMethod || 'Bank Transfer'),
         status: 'waiting_payment',
+      },
+      paymentDetails: {
+        id: paymentMethodRow.id,
+        name: paymentMethodRow.name,
+        account_name: paymentMethodRow.account_name,
+        account_number: paymentMethodRow.account_number,
+        instructions: paymentMethodRow.instructions,
+        qr_code: paymentMethodRow.qr_code,
       },
       instructions: paymentMethodRow ? paymentMethodRow.instructions : 'Silakan transfer sesuai total pembayaran dan kirim bukti transfer ke WhatsApp admin.',
     });
@@ -412,6 +425,7 @@ app.get('/api/orders/:orderCode', async (req, res) => {
     }
 
     const parsedItems = parseItems(order.items);
+    const paymentDetails = await get('SELECT id, name, account_name, account_number, instructions, qr_code FROM payment_methods WHERE id = ?', [order.payment_method]);
     res.json({
       success: true,
       order: {
@@ -427,6 +441,7 @@ app.get('/api/orders/:orderCode', async (req, res) => {
         orderStatus: order.order_status,
         createdAt: order.created_at,
         items: parsedItems,
+        paymentDetails: paymentDetails || null,
       },
     });
   } catch (error) {
