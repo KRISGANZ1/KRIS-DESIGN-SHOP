@@ -153,11 +153,24 @@ function getCartCount() {
 
 async function fetchJson(url, options = {}) {
   const response = await fetch(url, { headers: { 'Content-Type': 'application/json' }, ...options });
-  const data = await response.json();
+  const data = await readJsonResponse(response);
   if (!response.ok) {
     throw new Error(data.message || 'Permintaan gagal.');
   }
   return data;
+}
+
+async function readJsonResponse(response) {
+  const body = await response.text();
+  try {
+    return JSON.parse(body);
+  } catch {
+    const contentType = response.headers.get('content-type') || '';
+    const message = contentType.includes('text/html')
+      ? 'Server mengembalikan halaman, bukan respons API. Muat ulang halaman dan coba lagi.'
+      : 'Respons server tidak valid. Coba lagi beberapa saat.';
+    throw new Error(message);
+  }
 }
 
 async function loadProducts() {
@@ -1208,7 +1221,7 @@ function bindEvents() {
           method: productId ? 'PUT' : 'POST',
           body: fd,
         });
-        const data = await response.json();
+        const data = await readJsonResponse(response);
         if (!response.ok) {
           throw new Error(data.message || 'Gagal menambahkan produk.');
         }
@@ -1243,7 +1256,7 @@ function bindEvents() {
           method: methodId ? 'PUT' : 'POST',
           body: fd,
         });
-        const result = await response.json();
+        const result = await readJsonResponse(response);
         if (!response.ok) throw new Error(result.message || 'Gagal menyimpan metode pembayaran.');
         state.editingPaymentMethodId = '';
         await loadAdminDashboard();

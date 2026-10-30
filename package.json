@@ -7,7 +7,7 @@
     "start": "node server.js",
     "dev": "node server.js",
     "migrate:postgres": "node scripts/migrate-sqlite-to-postgres.js",
-    "test": "node --check server.js && node --check db.js && node --check \"api/[...path].js\" && node --check scripts/migrate-sqlite-to-postgres.js && node --check public/js/app.js"
+    "test": "node --check server.js && node --check db.js && node --check \"api/[...path].js\" && node --check \"api/admin/[...path].js\" && node --check \"api/admin/categories/[id].js\" && node --check \"api/admin/products/[id].js\" && node --check \"api/admin/payment-methods/[id].js\" && node --check \"api/admin/orders/[id].js\" && node --check scripts/migrate-sqlite-to-postgres.js && node --check public/js/app.js"
   },
   "keywords": [],
   "author": "",

@@ -45,12 +45,17 @@ async function persistUpload(file) {
     if (!process.env.BLOB_READ_WRITE_TOKEN) {
       throw new Error('BLOB_READ_WRITE_TOKEN wajib dikonfigurasi untuk menyimpan gambar di Vercel.');
     }
-    const blob = await put(`store-uploads/${fileName}`, file.buffer, {
-      access: 'public',
-      contentType: file.mimetype,
-      addRandomSuffix: false,
-    });
-    return blob.url;
+    try {
+      const blob = await put(`store-uploads/${fileName}`, file.buffer, {
+        access: 'public',
+        contentType: file.mimetype,
+        addRandomSuffix: false,
+      });
+      return blob.url;
+    } catch (error) {
+      console.error('Vercel Blob upload failed:', error);
+      throw new Error('Gagal mengunggah gambar. Periksa BLOB_READ_WRITE_TOKEN dan pastikan Blob store menggunakan akses publik.');
+    }
   }
 
   fs.mkdirSync(uploadDir, { recursive: true });
@@ -274,7 +279,7 @@ app.post('/api/admin/payment-methods', requireAdmin, handleQrImageUpload, async 
     res.json({ success: true, message: 'Metode pembayaran berhasil ditambahkan.' });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ success: false, message: 'Gagal menambahkan metode pembayaran.' });
+    res.status(500).json({ success: false, message: error.message || 'Gagal menambahkan metode pembayaran.' });
   }
 });
 
@@ -296,7 +301,7 @@ app.put('/api/admin/payment-methods/:id', requireAdmin, handleQrImageUpload, asy
     res.json({ success: true, message: 'Metode pembayaran berhasil diperbarui.' });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ success: false, message: 'Gagal memperbarui metode pembayaran.' });
+    res.status(500).json({ success: false, message: error.message || 'Gagal memperbarui metode pembayaran.' });
   }
 });
 
