@@ -489,8 +489,12 @@ app.get('/api/admin/dashboard', requireAdmin, async (req, res) => {
     const paymentMethods = await all('SELECT * FROM payment_methods ORDER BY created_at ASC');
     const stats = {
       products: Number((await get('SELECT COUNT(*) as count FROM products')).count),
+      activeProducts: Number((await get('SELECT COUNT(*) as count FROM products WHERE is_active = 1')).count),
       orders: Number((await get('SELECT COUNT(*) as count FROM orders')).count),
-      pending: Number((await get('SELECT COUNT(*) as count FROM orders WHERE order_status = ?', ['waiting_payment'])).count),
+      pending: Number((await get('SELECT COUNT(*) as count FROM orders WHERE payment_status = ?', ['pending'])).count),
+      paidOrders: Number((await get('SELECT COUNT(*) as count FROM orders WHERE payment_status = ?', ['paid'])).count),
+      failedOrders: Number((await get('SELECT COUNT(*) as count FROM orders WHERE payment_status = ?', ['failed'])).count),
+      totalSales: Number((await get('SELECT COALESCE(SUM(total), 0) as total FROM orders WHERE payment_status = ?', ['paid'])).total),
     };
 
     res.json({ success: true, categories, products, orders, paymentMethods, stats });

@@ -17,6 +17,7 @@ const state = {
   paymentOrder: null,
   adminSession: null,
   adminOrders: [],
+  adminStats: { products: 0, activeProducts: 0, orders: 0, pending: 0, paidOrders: 0, failedOrders: 0, totalSales: 0 },
   editingCategoryId: '',
   editingProductId: '',
   editingPaymentMethodId: '',
@@ -240,6 +241,7 @@ async function loadAdminDashboard() {
   state.products = data.products || [];
   state.adminOrders = data.orders || [];
   state.paymentMethods = data.paymentMethods || [];
+  state.adminStats = data.stats || state.adminStats;
 }
 
 async function loadAdminSession() {
@@ -1014,63 +1016,132 @@ function renderDashboardAdmin() {
   const category = state.categories.find((item) => item.id === state.editingCategoryId);
   const product = state.products.find((item) => item.id === state.editingProductId);
   const paymentMethod = state.paymentMethods.find((item) => item.id === state.editingPaymentMethodId);
+  const stats = state.adminStats;
+  const statusTotal = Math.max(1, Number(stats.pending || 0) + Number(stats.paidOrders || 0) + Number(stats.failedOrders || 0));
+  const statusRows = [
+    { label: 'Menunggu pembayaran', count: Number(stats.pending || 0), className: 'pending' },
+    { label: 'Pembayaran terkonfirmasi', count: Number(stats.paidOrders || 0), className: 'paid' },
+    { label: 'Pembayaran gagal', count: Number(stats.failedOrders || 0), className: 'failed' },
+  ];
   return `
-    <section class="section">
-      <div class="container">
-        <div class="page-hero">
-          <span class="eyebrow">Admin Dashboard</span>
-          <h1>Kelola Toko</h1>
-          <div class="product-actions" style="margin-top: 16px;">
-            <button class="ghost-button" id="logout-admin">Logout</button>
+    <section class="section admin-dashboard-section">
+      <div class="container admin-dashboard-shell">
+        <aside class="admin-sidebar">
+          <a class="admin-sidebar-brand" href="/login/admin" data-navigate="/login/admin"><span class="admin-sidebar-brand-mark">K</span><span>KRIS DESIGN<small>ADMIN STUDIO</small></span></a>
+          <span class="admin-sidebar-label">MENU UTAMA</span>
+          <nav class="admin-sidebar-nav" aria-label="Navigasi dashboard">
+            <a class="is-current" href="#admin-overview">◈ <span>Ringkasan</span></a>
+            <a href="#admin-products">▦ <span>Produk & Stok</span></a>
+            <a href="#admin-payments">▣ <span>Pembayaran</span></a>
+            <a href="#admin-orders">▤ <span>Pesanan</span></a>
+            <a href="#admin-categories">◇ <span>Kategori</span></a>
+          </nav>
+          <div class="admin-sidebar-bottom">
+            <div class="admin-profile-mark">${escapeHtml((state.adminSession?.fullName || state.adminSession?.username || 'A').slice(0, 1).toUpperCase())}</div>
+            <div class="admin-profile-copy"><strong>${escapeHtml(state.adminSession?.fullName || state.adminSession?.username || 'Admin')}</strong><small>Administrator</small></div>
+            <button class="ghost-button compact-button" id="logout-admin" type="button" aria-label="Logout">↗</button>
           </div>
-        </div>
-        <div class="grid-two" style="margin-top: 22px;">
-          <div class="admin-card">
-            <h3>${category ? 'Ubah Kategori' : 'Tambah Kategori'}</h3>
-            <form id="category-form">
-              <input type="hidden" name="id" value="${escapeHtml(category?.id || '')}" />
-              <div class="field"><label>Nama Kategori</label><input name="name" value="${escapeHtml(category?.name || '')}" required /></div>
-              <div class="field"><label>Deskripsi</label><textarea name="description">${escapeHtml(category?.description || '')}</textarea></div>
-              <div class="field"><label>Urutan</label><input name="sortOrder" type="number" value="${escapeHtml(category?.sort_order ?? 0)}" /></div>
-              <div class="product-actions" style="margin-top: 14px;"><button class="primary-button" type="submit">${category ? 'Simpan Perubahan' : 'Tambah Kategori'}</button>${category ? '<button class="ghost-button" type="button" data-cancel-category-edit>Batal</button>' : ''}</div>
-            </form>
-            <div class="admin-list" style="margin-top: 18px;">${renderAdminCategoryList()}</div>
-          </div>
-          <div class="admin-card">
-            <h3>${product ? 'Ubah Produk' : 'Tambah Produk'}</h3>
-            <form id="product-form">
-              <input type="hidden" name="id" value="${escapeHtml(product?.id || '')}" />
-              <div class="field"><label>Nama Produk</label><input name="name" value="${escapeHtml(product?.name || '')}" required /></div>
-              <div class="field"><label>Kategori</label><select name="categoryId" required>${state.categories.filter((item) => Number(item.is_active)).map((item) => `<option value="${escapeHtml(item.id)}" ${product?.category_id === item.id ? 'selected' : ''}>${escapeHtml(item.name)}</option>`).join('')}</select></div>
-              <div class="field"><label>Harga</label><input name="price" type="number" min="0" value="${escapeHtml(product?.price ?? '')}" required /></div>
-              <div class="field"><label>Harga Promo</label><input name="salePrice" type="number" min="0" value="${escapeHtml(product?.sale_price ?? '')}" /></div>
-              <div class="field"><label>Stok</label><input name="stock" type="number" min="0" value="${escapeHtml(product?.stock ?? 0)}" /></div>
-              <div class="field"><label>Deskripsi</label><textarea name="description">${escapeHtml(product?.description || '')}</textarea></div>
-              <div class="field"><label>Info Produk</label><textarea name="info">${escapeHtml(product?.info || '')}</textarea></div>
-              ${renderGalleryPicker(product?.image_url || '/assets/placeholder-product.svg')}
-              <div class="product-actions" style="margin-top: 14px;"><button class="primary-button" type="submit">${product ? 'Simpan Perubahan' : 'Tambah Produk'}</button>${product ? '<button class="ghost-button" type="button" data-cancel-product-edit>Batal</button>' : ''}</div>
-            </form>
-            <div class="admin-list" style="margin-top: 18px;">${renderAdminProductList()}</div>
-          </div>
-        </div>
-        <div class="admin-card" style="margin-top: 22px;">
-          <h3>${paymentMethod ? 'Ubah Metode Pembayaran' : 'Tambah Metode Pembayaran'}</h3>
-          <form id="payment-method-form">
-            <input type="hidden" name="id" value="${escapeHtml(paymentMethod?.id || '')}" />
-            <div class="field"><label>Nama Metode</label><input name="name" value="${escapeHtml(paymentMethod?.name || '')}" placeholder="Contoh: QRIS" required /></div>
-            <div class="field"><label>Nama Rekening (opsional)</label><input name="accountName" value="${escapeHtml(paymentMethod?.account_name || '')}" /></div>
-            <div class="field"><label>Nomor Rekening (opsional untuk QRIS)</label><input name="accountNumber" value="${escapeHtml(paymentMethod?.account_number || '')}" /></div>
-            <div class="field"><label>Instruksi</label><textarea name="instructions">${escapeHtml(paymentMethod?.instructions || '')}</textarea></div>
-            ${renderQrGalleryPicker(paymentMethod?.qr_code || '')}
-            <label class="checkbox-field"><input name="isActive" type="checkbox" ${paymentMethod && !Number(paymentMethod.is_active) ? '' : 'checked'} /> Tampilkan sebagai metode aktif</label>
-            <div class="product-actions" style="margin-top: 14px;"><button class="primary-button" type="submit">${paymentMethod ? 'Simpan Perubahan' : 'Tambah Metode'}</button>${paymentMethod ? '<button class="ghost-button" type="button" data-cancel-payment-edit>Batal</button>' : ''}</div>
-          </form>
-          <div class="admin-list" style="margin-top: 18px;">${renderAdminPaymentMethodList()}</div>
-        </div>
-        <div class="admin-card" style="margin-top: 22px;">
-          <h3>Pesanan & Konfirmasi Pembayaran</h3>
-          <p class="muted-copy">Ubah status pembayaran menjadi “Dikonfirmasi” setelah dana diterima. Pelanggan akan melihat tombol WhatsApp pada halaman cek pesanan.</p>
-          <div class="admin-list">${renderAdminOrders()}</div>
+        </aside>
+        <div class="admin-dashboard-main">
+          <header class="admin-dashboard-topbar">
+            <div><span class="admin-dashboard-kicker">ADMIN / OVERVIEW</span><h1>Dashboard</h1></div>
+            <div class="admin-dashboard-top-actions"><span class="admin-live-indicator">● Sistem aktif</span><button class="ghost-button compact-button" id="logout-admin-top" type="button">Keluar</button></div>
+          </header>
+
+          <section class="admin-overview" id="admin-overview">
+            <div class="admin-welcome-banner">
+              <div><span class="admin-dashboard-kicker">PANEL TOKO</span><h2>Selamat datang, ${escapeHtml(state.adminSession?.fullName || 'Admin')} 👋</h2><p>Pantau penjualan dan kelola toko dari satu tempat.</p></div>
+              <span class="admin-welcome-orb" aria-hidden="true">✦</span>
+            </div>
+            <div class="admin-stat-grid">
+              <article class="admin-stat-card"><span class="admin-stat-icon sales">↗</span><span class="admin-stat-label">Total penjualan terkonfirmasi</span><strong>${formatPrice(stats.totalSales)}</strong><small>${Number(stats.paidOrders || 0)} pesanan sudah dibayar</small></article>
+              <article class="admin-stat-card"><span class="admin-stat-icon orders">▤</span><span class="admin-stat-label">Total pesanan</span><strong>${Number(stats.orders || 0)}</strong><small>${Number(stats.pending || 0)} menunggu pembayaran</small></article>
+              <article class="admin-stat-card"><span class="admin-stat-icon products">▦</span><span class="admin-stat-label">Produk aktif</span><strong>${Number(stats.activeProducts ?? state.products.filter((item) => Number(item.is_active)).length)}</strong><small>${state.products.filter((item) => Number(item.stock) <= 3 && Number(item.is_active)).length} produk stok menipis</small></article>
+            </div>
+            <div class="admin-insights-grid">
+              <section class="admin-insight-card admin-sales-card">
+                <div class="admin-card-heading"><div><span class="admin-dashboard-kicker">ANALITIK</span><h2>Ringkasan pembayaran</h2></div><span class="admin-chart-caption">Semua pesanan</span></div>
+                <div class="admin-sales-chart">
+                  ${statusRows.map((row) => {
+                    const percent = Math.min(100, Math.round(row.count / statusTotal * 100));
+                    return `<div class="admin-status-row"><div><span>${row.label}</span><strong>${row.count}</strong></div><div class="admin-status-track"><span class="status-${row.className}" style="width:${percent}%"></span></div></div>`;
+                  }).join('')}
+                  <div class="admin-sales-chart-footer"><span>Total penjualan terkonfirmasi</span><strong>${formatPrice(stats.totalSales)}</strong></div>
+                </div>
+              </section>
+              <section class="admin-insight-card admin-quick-actions">
+                <div class="admin-card-heading"><div><span class="admin-dashboard-kicker">AKSES CEPAT</span><h2>Kelola toko</h2></div></div>
+                <a href="#admin-products"><span class="admin-quick-icon">＋</span><span><strong>Tambah / edit produk</strong><small>Harga, stok, deskripsi, foto</small></span><b>→</b></a>
+                <a href="#admin-payments"><span class="admin-quick-icon">▣</span><span><strong>Atur pembayaran</strong><small>Metode transfer dan QRIS</small></span><b>→</b></a>
+                <a href="#admin-orders"><span class="admin-quick-icon">✓</span><span><strong>Periksa pesanan</strong><small>${Number(stats.pending || 0)} perlu ditinjau</small></span><b>→</b></a>
+              </section>
+            </div>
+          </section>
+
+          <section class="admin-section-block" id="admin-products">
+            <div class="admin-section-heading"><div><span class="admin-dashboard-kicker">KATALOG</span><h2>Produk &amp; Stok</h2><p>Kelola produk, harga, stok, dan gambar yang tampil di toko.</p></div><span class="admin-section-count">${state.products.length} produk</span></div>
+            <div class="admin-card admin-product-manager">
+              <h3>${product ? 'Ubah Produk' : 'Tambah Produk'}</h3>
+              <form id="product-form">
+                <input type="hidden" name="id" value="${escapeHtml(product?.id || '')}" />
+                <div class="admin-form-grid">
+                  <div class="field"><label>Nama Produk</label><input name="name" value="${escapeHtml(product?.name || '')}" required /></div>
+                  <div class="field"><label>Kategori</label><select name="categoryId" required>${state.categories.filter((item) => Number(item.is_active)).map((item) => `<option value="${escapeHtml(item.id)}" ${product?.category_id === item.id ? 'selected' : ''}>${escapeHtml(item.name)}</option>`).join('')}</select></div>
+                  <div class="field"><label>Harga</label><input name="price" type="number" min="0" value="${escapeHtml(product?.price ?? '')}" required /></div>
+                  <div class="field"><label>Harga Promo</label><input name="salePrice" type="number" min="0" value="${escapeHtml(product?.sale_price ?? '')}" /></div>
+                  <div class="field"><label>Stok</label><input name="stock" type="number" min="0" value="${escapeHtml(product?.stock ?? 0)}" /></div>
+                  <div class="field"><label>Deskripsi</label><textarea name="description">${escapeHtml(product?.description || '')}</textarea></div>
+                  <div class="field"><label>Info Produk</label><textarea name="info">${escapeHtml(product?.info || '')}</textarea></div>
+                </div>
+                ${renderGalleryPicker(product?.image_url || '/assets/placeholder-product.svg')}
+                <div class="product-actions admin-form-actions"><button class="primary-button" type="submit">${product ? 'Simpan Perubahan' : 'Tambah Produk'}</button>${product ? '<button class="ghost-button" type="button" data-cancel-product-edit>Batal</button>' : ''}</div>
+              </form>
+              <div class="admin-list admin-dashboard-list">${renderAdminProductList()}</div>
+            </div>
+          </section>
+
+          <section class="admin-section-block" id="admin-payments">
+            <div class="admin-section-heading"><div><span class="admin-dashboard-kicker">PEMBAYARAN</span><h2>Metode &amp; QRIS</h2><p>Atur rekening pembayaran, instruksi, dan QRIS untuk pelanggan.</p></div><span class="admin-section-count">${state.paymentMethods.length} metode</span></div>
+            <div class="admin-card">
+              <h3>${paymentMethod ? 'Ubah Metode Pembayaran' : 'Tambah Metode Pembayaran'}</h3>
+              <form id="payment-method-form">
+                <input type="hidden" name="id" value="${escapeHtml(paymentMethod?.id || '')}" />
+                <div class="admin-form-grid">
+                  <div class="field"><label>Nama Metode</label><input name="name" value="${escapeHtml(paymentMethod?.name || '')}" placeholder="Contoh: QRIS, DANA, GoPay" required /></div>
+                  <div class="field"><label>Nama Rekening (opsional)</label><input name="accountName" value="${escapeHtml(paymentMethod?.account_name || '')}" /></div>
+                  <div class="field"><label>Nomor Rekening (opsional untuk QRIS)</label><input name="accountNumber" value="${escapeHtml(paymentMethod?.account_number || '')}" /></div>
+                  <div class="field"><label>Instruksi</label><textarea name="instructions">${escapeHtml(paymentMethod?.instructions || '')}</textarea></div>
+                </div>
+                ${renderQrGalleryPicker(paymentMethod?.qr_code || '')}
+                <label class="checkbox-field"><input name="isActive" type="checkbox" ${paymentMethod && !Number(paymentMethod.is_active) ? '' : 'checked'} /> Tampilkan sebagai metode aktif</label>
+                <div class="product-actions admin-form-actions"><button class="primary-button" type="submit">${paymentMethod ? 'Simpan Perubahan' : 'Tambah Metode'}</button>${paymentMethod ? '<button class="ghost-button" type="button" data-cancel-payment-edit>Batal</button>' : ''}</div>
+              </form>
+              <div class="admin-list admin-dashboard-list">${renderAdminPaymentMethodList()}</div>
+            </div>
+          </section>
+
+          <section class="admin-section-block" id="admin-orders">
+            <div class="admin-section-heading"><div><span class="admin-dashboard-kicker">TRANSAKSI</span><h2>Pesanan &amp; Pembayaran</h2><p>Periksa pesanan terbaru dan konfirmasi pembayaran setelah dana diterima.</p></div><span class="admin-section-count">${state.adminOrders.length} terbaru</span></div>
+            <div class="admin-card"><div class="admin-list">${renderAdminOrders()}</div></div>
+          </section>
+
+          <section class="admin-section-block" id="admin-categories">
+            <div class="admin-section-heading"><div><span class="admin-dashboard-kicker">KATALOG</span><h2>Kategori Produk</h2><p>Atur kategori yang digunakan untuk mengelompokkan produk.</p></div><span class="admin-section-count">${state.categories.length} kategori</span></div>
+            <div class="admin-card">
+              <h3>${category ? 'Ubah Kategori' : 'Tambah Kategori'}</h3>
+              <form id="category-form">
+                <input type="hidden" name="id" value="${escapeHtml(category?.id || '')}" />
+                <div class="admin-form-grid">
+                  <div class="field"><label>Nama Kategori</label><input name="name" value="${escapeHtml(category?.name || '')}" required /></div>
+                  <div class="field"><label>Urutan</label><input name="sortOrder" type="number" value="${escapeHtml(category?.sort_order ?? 0)}" /></div>
+                  <div class="field"><label>Deskripsi</label><textarea name="description">${escapeHtml(category?.description || '')}</textarea></div>
+                </div>
+                <div class="product-actions admin-form-actions"><button class="primary-button" type="submit">${category ? 'Simpan Perubahan' : 'Tambah Kategori'}</button>${category ? '<button class="ghost-button" type="button" data-cancel-category-edit>Batal</button>' : ''}</div>
+              </form>
+              <div class="admin-list admin-dashboard-list">${renderAdminCategoryList()}</div>
+            </div>
+          </section>
+          <footer class="admin-dashboard-footer">KRIS DESIGN SHOP · Admin Studio</footer>
         </div>
       </div>
     </section>
@@ -1340,8 +1411,7 @@ function bindEvents() {
     });
   }
 
-  const logoutButton = document.getElementById('logout-admin');
-  if (logoutButton) {
+  document.querySelectorAll('#logout-admin, #logout-admin-top').forEach((logoutButton) => {
     logoutButton.addEventListener('click', async () => {
       try {
         await fetchJson('/api/admin/logout', { method: 'POST' });
@@ -1351,7 +1421,7 @@ function bindEvents() {
         showToast(error.message || 'Logout gagal.', 'error');
       }
     });
-  }
+  });
 
   const categoryForm = document.getElementById('category-form');
   if (categoryForm) {
