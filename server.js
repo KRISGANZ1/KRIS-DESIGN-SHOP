@@ -550,11 +550,40 @@ app.put('/api/admin/products/:id', requireAdmin, handleProductImageUpload, async
   }
 });
 
+app.patch('/api/admin/products/:id/status', requireAdmin, async (req, res) => {
+  try {
+    const isActive = Number(req.body.isActive);
+    if (![0, 1].includes(isActive)) {
+      return res.status(400).json({ success: false, message: 'Status produk tidak valid.' });
+    }
+
+    const result = await run(
+      'UPDATE products SET is_active = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+      [isActive, req.params.id]
+    );
+    if (!result.changes) {
+      return res.status(404).json({ success: false, message: 'Produk tidak ditemukan.' });
+    }
+
+    res.json({
+      success: true,
+      message: isActive ? 'Produk berhasil diaktifkan kembali.' : 'Produk berhasil dinonaktifkan.',
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, message: 'Gagal mengubah status produk.' });
+  }
+});
+
 app.delete('/api/admin/products/:id', requireAdmin, async (req, res) => {
   try {
-    await run('DELETE FROM products WHERE id = ?', [req.params.id]);
+    const result = await run('DELETE FROM products WHERE id = ?', [req.params.id]);
+    if (!result.changes) {
+      return res.status(404).json({ success: false, message: 'Produk tidak ditemukan.' });
+    }
     res.json({ success: true, message: 'Produk berhasil dihapus.' });
   } catch (error) {
+    console.error(error);
     res.status(500).json({ success: false, message: 'Gagal menghapus produk.' });
   }
 });

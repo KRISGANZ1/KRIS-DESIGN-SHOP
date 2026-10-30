@@ -768,10 +768,11 @@ function renderAdminProductList() {
   return state.products.length ? state.products.map((product) => `
     <article class="admin-list-item product-admin-item">
       <img src="${escapeHtml(product.image_url || '/assets/placeholder-product.svg')}" alt="" />
-      <div class="admin-product-summary"><strong>${escapeHtml(product.name)}</strong><small>${formatPrice(product.sale_price || product.price)} · Stok ${Number(product.stock)}</small></div>
+      <div class="admin-product-summary"><strong>${escapeHtml(product.name)}</strong><small>${formatPrice(product.sale_price || product.price)} · Stok ${Number(product.stock)} · ${Number(product.is_active) ? 'Aktif' : 'Nonaktif'}</small></div>
       <div class="admin-row-actions">
         <button class="ghost-button compact-button" type="button" data-edit-product="${escapeHtml(product.id)}">Ubah</button>
-        <button class="danger-button compact-button" type="button" data-delete-product="${escapeHtml(product.id)}">Hapus</button>
+        <button class="ghost-button compact-button" type="button" data-toggle-product="${escapeHtml(product.id)}" data-active="${Number(product.is_active) ? '1' : '0'}">${Number(product.is_active) ? 'Nonaktifkan' : 'Aktifkan kembali'}</button>
+        <button class="danger-button compact-button" type="button" data-delete-product="${escapeHtml(product.id)}">Hapus permanen</button>
       </div>
     </article>
   `).join('') : '<p>Belum ada produk.</p>';
@@ -983,15 +984,31 @@ function bindEvents() {
     });
     document.querySelectorAll('[data-delete-product]').forEach((button) => {
       button.addEventListener('click', async () => {
-        if (!window.confirm('Yakin ingin menghapus produk ini?')) return;
+        if (!window.confirm('Hapus produk ini secara permanen? Produk tidak dapat dipulihkan.')) return;
         try {
-          await fetchJson(`/api/admin/products/${encodeURIComponent(button.dataset.deleteProduct)}`, { method: 'DELETE' });
+          const result = await fetchJson(`/api/admin/products/${encodeURIComponent(button.dataset.deleteProduct)}`, { method: 'DELETE' });
           state.editingProductId = '';
           await loadAdminDashboard();
-          showToast('Produk berhasil dihapus.', 'success');
+          showToast(result.message || 'Produk berhasil dihapus.', 'success');
           render();
         } catch (error) {
           showToast(error.message || 'Gagal menghapus produk.', 'error');
+        }
+      });
+    });
+    document.querySelectorAll('[data-toggle-product]').forEach((button) => {
+      button.addEventListener('click', async () => {
+        const isActive = button.dataset.active === '1';
+        try {
+          const result = await fetchJson(`/api/admin/products/${encodeURIComponent(button.dataset.toggleProduct)}/status`, {
+            method: 'PATCH',
+            body: JSON.stringify({ isActive: isActive ? 0 : 1 }),
+          });
+          await loadAdminDashboard();
+          showToast(result.message, 'success');
+          render();
+        } catch (error) {
+          showToast(error.message || 'Gagal mengubah status produk.', 'error');
         }
       });
     });

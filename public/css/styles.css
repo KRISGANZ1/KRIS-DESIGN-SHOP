@@ -461,7 +461,7 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
   color: var(--muted);
   margin-top: 3px;
 }
-.admin-row-actions { display: flex; gap: 8px; flex-shrink: 0; }
+.admin-row-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; flex-shrink: 0; }
 .compact-button { padding: 8px 12px; font-size: 0.82rem; }
 .danger-button {
   padding: 10px 14px;
@@ -537,7 +537,7 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
   .admin-order-controls { grid-template-columns: 1fr; }
   .admin-order-heading { flex-direction: column; }
   .product-admin-item { flex-wrap: wrap; }
-  .product-admin-item .admin-row-actions { flex-direction: row; width: 100%; }
+  .product-admin-item .admin-row-actions { flex-direction: row; flex-wrap: wrap; width: 100%; }
 }
 
 @media (prefers-reduced-motion: reduce) {
