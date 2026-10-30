@@ -419,9 +419,41 @@ function renderCategories() {
   `;
 }
 
-function renderProductCard(product) {
+function renderProductCard(product, catalog = false) {
   const price = product.sale_price && Number(product.sale_price) < Number(product.price) ? product.sale_price : product.price;
   const regularPrice = Number(product.price || 0);
+  if (catalog) {
+    const category = state.categories.find((item) => item.id === product.category_id);
+    const badges = [
+      Number(product.is_new) ? '<span class="catalog-badge catalog-badge-new">Terbaru</span>' : '',
+      Number(product.is_featured) ? '<span class="catalog-badge catalog-badge-featured">Terlaris</span>' : '',
+    ].filter(Boolean).join('');
+    const productPath = `/product/${encodeURIComponent(product.slug)}`;
+    return `
+      <article class="product-card catalog-product-card">
+        <div class="catalog-product-image">
+          <a href="${productPath}" data-navigate="${productPath}">
+            <img src="${escapeHtml(product.image_url || '/assets/placeholder-product.svg')}" alt="${escapeHtml(product.name)}" loading="lazy" />
+          </a>
+          ${badges ? `<div class="catalog-product-badges">${badges}</div>` : ''}
+        </div>
+        <div class="product-body">
+          <div class="catalog-product-category">${escapeHtml(category?.name || 'Produk digital')}</div>
+          <h3><a href="${productPath}" data-navigate="${productPath}">${escapeHtml(product.name)}</a></h3>
+          <p>${escapeHtml(product.short_description || product.description || 'Produk digital premium.')}</p>
+          <div class="catalog-product-footer">
+            <div class="price-box">
+              <strong>${formatPrice(price)}</strong>
+              ${regularPrice > Number(price) ? `<small>${formatPrice(regularPrice)}</small>` : ''}
+            </div>
+            <span class="catalog-stock ${Number(product.stock) > 0 ? 'is-available' : 'is-empty'}">${Number(product.stock) > 0 ? 'Tersedia' : 'Habis'}</span>
+          </div>
+          <button class="primary-button catalog-buy-button" data-buy-now="${encodeURIComponent(product.id)}" ${Number(product.stock) > 0 ? '' : 'disabled'}>Beli Sekarang <span aria-hidden="true">→</span></button>
+        </div>
+      </article>
+    `;
+  }
+
   return `
     <article class="product-card">
       <a href="/product/${encodeURIComponent(product.slug)}" data-navigate="/product/${encodeURIComponent(product.slug)}">
@@ -448,6 +480,7 @@ function renderProductCard(product) {
 }
 
 function renderProducts() {
+  const categories = state.categories.filter((category) => Number(category.is_active ?? 1));
   const filteredProducts = state.products.filter((product) => {
     if (state.selectedCategory && product.category_id !== state.selectedCategory) return false;
     if (state.searchTerm) {
@@ -466,56 +499,59 @@ function renderProducts() {
     }
   });
 
-  const start = (state.currentPage - 1) * state.pageSize;
-  const paginated = sorted.slice(start, start + state.pageSize);
   const totalPages = Math.max(1, Math.ceil(sorted.length / state.pageSize));
+  if (state.currentPage > totalPages) state.currentPage = totalPages;
+  const visiblePage = state.currentPage;
+  const start = (visiblePage - 1) * state.pageSize;
+  const paginated = sorted.slice(start, start + state.pageSize);
 
   return `
     <section class="section">
       <div class="container">
-        <div class="page-shell">
-          <div class="page-hero">
-            <span class="eyebrow">Katalog Produk</span>
-            <h1>Semua Produk</h1>
-          </div>
-          <div class="filter-panel">
-            <div class="filter-row">
-              <div class="field" style="flex: 2; min-width: 220px;">
-                <label for="search-product">Cari produk</label>
-                <input id="search-product" type="text" placeholder="Cari akun, desain, atau digital..." value="${escapeHtml(state.searchTerm)}" />
-              </div>
-              <div class="field">
-                <label for="category-filter">Kategori</label>
-                <select id="category-filter">
-                  <option value="">Semua Kategori</option>
-                  ${state.categories.map((category) => `
-                    <option value="${escapeHtml(category.id)}" ${state.selectedCategory === category.id ? 'selected' : ''}>${escapeHtml(category.name)}</option>
-                  `).join('')}
-                </select>
-              </div>
-              <div class="field">
-                <label for="sort-filter">Urutkan</label>
-                <select id="sort-filter">
-                  <option value="newest" ${state.sortBy === 'newest' ? 'selected' : ''}>Terbaru</option>
-                  <option value="price_asc" ${state.sortBy === 'price_asc' ? 'selected' : ''}>Harga Terendah</option>
-                  <option value="price_desc" ${state.sortBy === 'price_desc' ? 'selected' : ''}>Harga Tertinggi</option>
-                </select>
-              </div>
+        <div class="page-shell catalog-page">
+          <div class="catalog-hero">
+            <div>
+              <span class="eyebrow">Koleksi pilihan KRIS DESIGN SHOP</span>
+              <h1>Temukan produk <span>favoritmu.</span></h1>
+              <p>Jelajahi produk digital premium, pilih yang kamu suka, lalu checkout dengan mudah.</p>
             </div>
+            <div class="catalog-hero-mark" aria-hidden="true">KDS<span>✦</span></div>
+          </div>
+          <div class="catalog-controls">
+            <label class="catalog-search" for="search-product">
+              <span aria-hidden="true">⌕</span>
+              <input id="search-product" type="search" placeholder="Cari produk yang kamu inginkan..." value="${escapeHtml(state.searchTerm)}" />
+            </label>
+            <label class="catalog-sort" for="sort-filter">
+              <span>Urutkan:</span>
+              <select id="sort-filter">
+                <option value="newest" ${state.sortBy === 'newest' ? 'selected' : ''}>Terbaru</option>
+                <option value="price_asc" ${state.sortBy === 'price_asc' ? 'selected' : ''}>Harga terendah</option>
+                <option value="price_desc" ${state.sortBy === 'price_desc' ? 'selected' : ''}>Harga tertinggi</option>
+              </select>
+            </label>
           </div>
 
-          <div class="products-toolbar" style="margin-top: 20px;">
-            <div class="results-label">Menampilkan ${sorted.length} produk</div>
+          <div class="catalog-category-row" aria-label="Filter kategori produk">
+            <button type="button" class="catalog-category-chip ${state.selectedCategory ? '' : 'is-selected'}" data-catalog-category="">Semua</button>
+            ${categories.map((category) => `
+              <button type="button" class="catalog-category-chip ${state.selectedCategory === category.id ? 'is-selected' : ''}" data-catalog-category="${escapeHtml(category.id)}">${escapeHtml(category.name)}</button>
+            `).join('')}
           </div>
 
-          <div class="product-grid">
-            ${paginated.length ? paginated.map(renderProductCard).join('') : '<div class="empty-state">Produk tidak tersedia untuk filter saat ini.</div>'}
+          <div class="catalog-section-heading">
+            <div><span class="eyebrow">Katalog</span><h2>Semua Produk</h2></div>
+            <span class="results-label">${sorted.length} produk ditemukan</span>
+          </div>
+
+          <div class="product-grid catalog-product-grid">
+            ${paginated.length ? paginated.map((product) => renderProductCard(product, true)).join('') : '<div class="empty-state">Produk tidak tersedia untuk filter saat ini.</div>'}
           </div>
 
           <div class="pagination">
-            <button class="ghost-button" data-page-change="prev" ${state.currentPage <= 1 ? 'disabled' : ''}>Sebelumnya</button>
-            <span class="results-label">Halaman ${state.currentPage} / ${totalPages}</span>
-            <button class="ghost-button" data-page-change="next" ${state.currentPage >= totalPages ? 'disabled' : ''}>Berikutnya</button>
+            <button class="ghost-button" data-page-change="prev" ${visiblePage <= 1 ? 'disabled' : ''}>Sebelumnya</button>
+            <span class="results-label">Halaman ${visiblePage} / ${totalPages}</span>
+            <button class="ghost-button" data-page-change="next" ${visiblePage >= totalPages ? 'disabled' : ''}>Berikutnya</button>
           </div>
         </div>
       </div>
@@ -1105,10 +1141,30 @@ function bindEvents() {
     });
   });
 
+  document.querySelectorAll('[data-buy-now]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const productId = decodeURIComponent(button.dataset.buyNow);
+      const product = state.products.find((item) => item.id === productId);
+      if (!product || Number(product.stock) <= 0) return;
+      addToCart(product.id, product.name, product.sale_price || product.price, product.image_url, 1);
+      setRoute('/checkout');
+    });
+  });
+
+  document.querySelectorAll('[data-catalog-category]').forEach((button) => {
+    button.addEventListener('click', () => {
+      state.selectedCategory = button.dataset.catalogCategory;
+      state.currentPage = 1;
+      const target = `/products${state.selectedCategory ? `?category=${encodeURIComponent(state.selectedCategory)}` : ''}`;
+      setRoute(target);
+    });
+  });
+
   document.querySelectorAll('[data-page-change]').forEach((button) => {
     button.addEventListener('click', () => {
       const direction = button.dataset.pageChange;
-      const max = Math.max(1, Math.ceil(state.products.length / state.pageSize));
+      const activeProducts = state.products.filter((product) => product.is_active !== 0);
+      const max = Math.max(1, Math.ceil(activeProducts.length / state.pageSize));
       if (direction === 'next' && state.currentPage < max) state.currentPage += 1;
       if (direction === 'prev' && state.currentPage > 1) state.currentPage -= 1;
       render();
@@ -1132,9 +1188,15 @@ function bindEvents() {
   const searchInput = document.getElementById('search-product');
   if (searchInput) {
     searchInput.addEventListener('input', (event) => {
+      const cursorPosition = event.target.selectionStart;
       state.searchTerm = event.target.value.trim();
       state.currentPage = 1;
       render();
+      const refreshedSearchInput = document.getElementById('search-product');
+      refreshedSearchInput?.focus();
+      if (refreshedSearchInput && cursorPosition !== null) {
+        refreshedSearchInput.setSelectionRange(cursorPosition, cursorPosition);
+      }
     });
   }
 
