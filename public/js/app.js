@@ -316,39 +316,74 @@ function renderFooter() {
 }
 
 function renderHero() {
-  const featureProduct = state.products.find((product) => product.is_featured) || state.products[0];
+  const activeProducts = state.products.filter((product) => product.is_active !== 0);
+  const featureProduct = activeProducts.find((product) => Number(product.is_featured)) || activeProducts[0];
   return `
-    <section class="hero">
-      <div class="container hero-grid">
-        <div class="hero-card">
-          <span class="eyebrow">Premium Digital Store</span>
-          <h1>Kebutuhan Gaming dan Kreativitas Digital, <span>Semua Ada di Sini.</span></h1>
-          <p class="lead">Temukan akun game, diamond, jasa desain logo, banner, grafis, hingga produk digital premium dengan proses cepat dan aman.</p>
+    <section class="hero home-hero">
+      <div class="container">
+        <div class="hero-card home-promo-banner">
+          <div class="home-promo-copy">
+            <span class="eyebrow"><span class="promo-dot"></span> Promo spesial · Produk digital premium</span>
+            <h1>Upgrade game & kreasi digitalmu <span>mulai dari sini.</span></h1>
+            <p class="lead">Temukan akun game, top up, desain kreatif, dan produk digital pilihan. Proses cepat, aman, dan siap kamu nikmati.</p>
           <div class="hero-actions">
-            <button class="primary-button" data-navigate="/products">Belanja Sekarang</button>
-            <button class="secondary-button" data-navigate="/about">Kenali Kami</button>
+              <button class="primary-button shop-now-button" data-navigate="/products">BELANJA SEKARANG <span aria-hidden="true">→</span></button>
+              <span class="promo-note">Pilihan premium untuk kebutuhanmu</span>
           </div>
-          <div class="stats-row">
-            <div class="stat-box"><strong>100%</strong><span>Proses aman</span></div>
-            <div class="stat-box"><strong>Fast</strong><span>Respons cepat</span></div>
-            <div class="stat-box"><strong>IDR</strong><span>Payment fleksibel</span></div>
-          </div>
-        </div>
-        <div class="hero-visual">
-          <div class="product-spotlight">
-            <img src="${featureProduct ? featureProduct.image_url : '/assets/placeholder-product.svg'}" alt="${escapeHtml(featureProduct ? featureProduct.name : 'Produk unggulan')}" />
-            <div class="product-pricing">
-              <div>
-                <div class="product-tag">Produk unggulan</div>
-                <h3 style="margin: 12px 0 0;">${escapeHtml(featureProduct ? featureProduct.name : 'Produk premium')}</h3>
-              </div>
-              <strong>${formatPrice(featureProduct ? featureProduct.sale_price || featureProduct.price : 0)}</strong>
+            <div class="home-trust-row">
+              <span><i aria-hidden="true">✓</i> Transaksi aman</span>
+              <span><i aria-hidden="true">✦</i> Proses cepat</span>
+              <span><i aria-hidden="true">◷</i> Siap membantu</span>
             </div>
+          </div>
+          <div class="home-promo-art" aria-hidden="true">
+            <div class="promo-orbit promo-orbit-one"></div>
+            <div class="promo-orbit promo-orbit-two"></div>
+            <img class="promo-logo-art" src="${escapeHtml(featureProduct?.image_url || '/assets/kris-design-shop-logo.png')}" alt="" />
+            ${featureProduct ? `
+              <div class="promo-feature-card">
+                <span>✨ Pilihan unggulan</span>
+                <strong>${escapeHtml(featureProduct.name)}</strong>
+                <b>${formatPrice(featureProduct.sale_price || featureProduct.price)}</b>
+              </div>
+            ` : '<div class="promo-fallback-label">KRIS DESIGN SHOP</div>'}
           </div>
         </div>
       </div>
     </section>
   `;
+}
+
+function renderHomeProductSection(title, eyebrow, products, emptyMessage) {
+  const visibleProducts = products.slice(0, 4);
+  return `
+    <section class="section home-product-section">
+      <div class="container">
+        <div class="section-header home-section-header">
+          <div>
+            <span class="eyebrow">${escapeHtml(eyebrow)}</span>
+            <h2>${escapeHtml(title)}</h2>
+          </div>
+          <button class="ghost-button home-view-all" data-navigate="/products">Lihat semua <span aria-hidden="true">→</span></button>
+        </div>
+        ${visibleProducts.length
+          ? `<div class="product-grid">${visibleProducts.map(renderProductCard).join('')}</div>`
+          : `<div class="home-empty-state">${escapeHtml(emptyMessage)}</div>`}
+      </div>
+    </section>
+  `;
+}
+
+function renderHome() {
+  const activeProducts = state.products.filter((product) => product.is_active !== 0);
+  const latestProducts = [...activeProducts].sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
+  const featuredProducts = activeProducts.filter((product) => Number(product.is_featured));
+  const bestSellers = featuredProducts.length ? featuredProducts : [...activeProducts].sort((a, b) => Number(b.stock || 0) - Number(a.stock || 0));
+
+  return renderHero()
+    + renderHomeProductSection('Produk Terlaris', 'Favorit pelanggan', bestSellers, 'Produk pilihan akan segera hadir. Cek kembali dalam waktu dekat.')
+    + renderHomeProductSection('Produk Terbaru', 'Baru ditambahkan', latestProducts, 'Belum ada produk terbaru untuk ditampilkan.')
+    + renderCategories();
 }
 
 function renderCategories() {
@@ -948,7 +983,7 @@ function renderPage() {
   }
 
   let content = '';
-  if (route === '/') content = renderHero() + renderCategories() + renderProducts();
+  if (route === '/') content = renderHome();
   else if (route === '/products') content = renderProducts();
   else if (route === '/product') content = renderProductDetail(pathname.split('/product/')[1] || '');
   else if (route === '/cart') content = renderCart();
