@@ -979,8 +979,10 @@ function renderQrGalleryPicker(currentValue = '') {
 }
 
 function renderAdminOrders() {
-  return state.adminOrders.length ? state.adminOrders.map((order) => `
-    <article class="admin-order-item" data-admin-order="${escapeHtml(order.id)}">
+  return state.adminOrders.length ? state.adminOrders.map((order) => {
+    const canDelete = order.payment_status !== 'paid' && (order.payment_status === 'failed' || order.order_status === 'cancelled');
+    return `
+    <article class="admin-order-item ${canDelete ? 'is-removable' : ''}" data-admin-order="${escapeHtml(order.id)}">
       <div class="admin-order-heading"><div><strong>${escapeHtml(order.order_code)}</strong><small>${escapeHtml(order.customer_name)} · ${formatPrice(order.total)}</small></div><small>${escapeHtml(order.created_at || '')}</small></div>
       <div class="admin-order-controls">
         <label class="field"><span>Status pembayaran</span><select name="paymentStatus">
@@ -991,8 +993,12 @@ function renderAdminOrders() {
         </select></label>
         <button class="primary-button compact-button" type="button" data-save-order="${escapeHtml(order.id)}">Simpan status</button>
       </div>
+      ${canDelete
+        ? `<div class="admin-order-delete-row"><span>Pesanan gagal atau dibatalkan</span><button class="danger-button compact-button" type="button" data-delete-order="${escapeHtml(order.id)}" data-order-code="${escapeHtml(order.order_code)}">Hapus pesanan</button></div>`
+        : ''}
     </article>
-  `).join('') : '<p>Belum ada pesanan.</p>';
+  `;
+  }).join('') : '<p>Belum ada pesanan.</p>';
 }
 
 function renderAdmin() {
@@ -1565,6 +1571,21 @@ function bindEvents() {
         render();
       } catch (error) {
         showToast(error.message || 'Gagal memperbarui status pesanan.', 'error');
+      }
+    });
+  });
+
+  document.querySelectorAll('[data-delete-order]').forEach((button) => {
+    button.addEventListener('click', async () => {
+      const orderCode = button.dataset.orderCode;
+      if (!window.confirm(`Hapus pesanan ${orderCode}? Tindakan ini tidak dapat dibatalkan.`)) return;
+      try {
+        await fetchJson(`/api/admin/orders/${encodeURIComponent(button.dataset.deleteOrder)}`, { method: 'DELETE' });
+        await loadAdminDashboard();
+        showToast(`Pesanan ${orderCode} berhasil dihapus.`, 'success');
+        render();
+      } catch (error) {
+        showToast(error.message || 'Gagal menghapus pesanan.', 'error');
       }
     });
   });

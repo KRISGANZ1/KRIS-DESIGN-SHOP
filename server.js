@@ -675,6 +675,24 @@ app.put('/api/admin/orders/:id', requireAdmin, async (req, res) => {
   }
 });
 
+app.delete('/api/admin/orders/:id', requireAdmin, async (req, res) => {
+  try {
+    const order = await get('SELECT id, payment_status, order_status FROM orders WHERE id = ?', [req.params.id]);
+    if (!order) {
+      return res.status(404).json({ success: false, message: 'Pesanan tidak ditemukan.' });
+    }
+    if (order.payment_status === 'paid' || (order.payment_status !== 'failed' && order.order_status !== 'cancelled')) {
+      return res.status(409).json({ success: false, message: 'Hanya pesanan gagal atau dibatalkan yang dapat dihapus.' });
+    }
+
+    await run('DELETE FROM orders WHERE id = ?', [req.params.id]);
+    res.json({ success: true, message: 'Pesanan gagal atau dibatalkan berhasil dihapus.' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, message: 'Gagal menghapus pesanan.' });
+  }
+});
+
 app.use((req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });

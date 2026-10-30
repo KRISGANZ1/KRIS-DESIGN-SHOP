@@ -906,6 +906,8 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 .admin-order-controls { display: grid; grid-template-columns: 1fr 1fr auto; align-items: end; gap: 12px; }
 .admin-order-controls .field { min-width: 0; }
 .admin-order-controls .field span { color: var(--muted); font-size: 0.8rem; }
+.admin-order-delete-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 13px; padding-top: 12px; border-top: 1px solid rgba(248,113,113,0.16); }
+.admin-order-delete-row > span { color: #fca5a5; font-size: 0.76rem; }
 .muted-copy { color: var(--muted); }
 .checkbox-field { display: flex; align-items: center; gap: 9px; color: var(--muted); margin-top: 10px; }
 .checkbox-field input { accent-color: var(--primary); }
