@@ -308,6 +308,9 @@ async function initializeDatabaseInternal() {
     ];
 
     for (const product of seedProducts) {
+      const category = await get('SELECT id FROM categories WHERE id = ?', [product.category_id]);
+      if (!category) continue;
+
       await run(
         `INSERT INTO products (
           id, category_id, name, slug, image_url, description, short_description, price, sale_price, stock, status, info, is_active, is_featured, is_new, is_promo, created_at
